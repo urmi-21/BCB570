@@ -1,0 +1,4 @@
+GOID	GO_term	Cluster frequency	Background frequency	P-value	FDR	Expected FP	Gene(s) annotated to the term
+42393	histone binding	"2 out of 4 genes, 50.0%"	"41 out of 7165 background genes, 0.6%"	0.00057	0	0	MSI1/YBR195C:RLF2/YPR018W
+							
+5488	binding	"4 out of 4 genes, 100.0%"	"1999 out of 7165 background genes, 27.9%"	0.01814	0.01	0.02	MSI1/YBR195C:MEU1/YLR017W:DSS4/YPR017C:RLF2/YPR018W

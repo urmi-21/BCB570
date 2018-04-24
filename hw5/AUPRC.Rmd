@@ -1,0 +1,46 @@
+---
+title: "Precision-Recall Curves"
+author: "Gaurav Kandoi"
+date: "February 26, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Precision-Recall Curve
+
+This uses the PRROC library
+
+```{r}
+#install.packages("PRROC")
+library(PRROC)
+```
+
+Set a random seed so that everyone gets the same results with the example script.  
+First we generate 1000 random "Scores" between 0 and 1. These will be the scores from your prediction for every edge.  
+The "True_Labels" are the known labels (0 or 1) for every gene pair. 0 means no edge (negative) and 1 means the presence of an edge (positive).  
+
+```{r}
+set.seed(1)
+Scores <- runif(1000)
+True_Labels <- sample(c(0,1), size = 1000, replace = T)
+```
+
+Next we use the "pr.curve" function from PRROC to calcuate the precision-recall values. The function also calculate the area under the precision recall curve.    
+The function requires your true labels and prediction scores.  
+Please note that the value i in the true labels and prediction scores should correspond to the same gene pair.  
+Next we plot the precision recall curve using the base plot function.  
+
+```{r}
+pr <- pr.curve(scores.class0 = Scores, weights.class0 = True_Labels, curve = T)
+pr
+plot(pr)
+```
+
+System information
+```{r}
+R.Version()
+search()
+```

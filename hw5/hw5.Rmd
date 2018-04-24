@@ -1,0 +1,160 @@
+---
+title: "BCB570 HW5"
+author: "Urminder Singh"
+date: "March 3, 2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    message = FALSE,
+    warning = FALSE
+)
+```
+
+# Solution 1
+
+## Bagging
+
+Bagging is an ensembl method to improve stability of learning algorithms by reducing its variance. In general, given a dataset $D$ with $n$ datapoints (in any $k$-dimentional space), bagging generates $m$ new datasets each of size $n$. It does so by doing sampling-with-replacement and samples $n$ datapoints $m$ times. If $n$ is large enough, the 63.2% unique datapoints are expected to be in the $m$ samples. A variation of bagging can have another parameter $n'$ which is the dataset size of the sampled datasets. Here, bagging will generates $m$ new datasets each of size $n'$ by doing sampling-with-replacement.
+
+```{r, tidy=TRUE}
+#sample 100 datapoints
+n_data_100<-rnorm(100,mean = 2,sd = sqrt(8))
+cat("Mean is",mean(n_data_100))
+cat("Var is",var(n_data_100))
+means<-c()
+vars<-c()
+N<-20
+k<-10
+for(i in 1:N){
+  this<-sample(n_data_100,k,replace = T)
+  #print(this)
+  means<-c(means,mean(this))
+  vars<-c(vars,var(this))
+}
+
+hist(means, col = c("Red"))
+hist(vars, col = c("Red"))
+e_mean<-mean(means)
+e_var<-mean(vars)
+
+```
+
+From the histograms it is hard to estimate true parametes as we sampled very few datasets. From the sub samples the mean of means is `r e_mean` and mean of variances is `r e_var`. These are our best estimates from our sub-samples.
+
+# Solution 2
+
+## Creating association networks
+
+To create any association network we need to go through following steps.
+
+1. First we have to define a way that can "associate" datapoints or variables. If two points are associated we must connect them through an edge and in this way we can create a network. We have to define a mathematical function that can quantify association between two datapoints e.g. we can compute the correlation between two variables if it is greater than zero, we say the variables are accosiated.
+
+2. We may choose an association function, depending on the type of network we want i.e directed, undirected, weighted or unweighted.E.g. if we want directed association graph our association function should not be always symmetrical.
+
+3. After defining a function that can quantify association, we need to set a threshold such that we create edges between only the strongly associated nodes. E.g. if we define distance between two points to be our measure of association then we need to set a cut-off such that if the distance is more than a value, we do not count that as true association.
+  * 3a Depending on the data, sometimes it may be useful to scale all the association metrics computed to make all the association comparable with in the graph
+  
+## A novel association method
+
+A method for creating association networks, not discussed in class, is using partial correlations. This method is not completely novel as it has been applied to study phenotypic networks (Chu et. al. 2014) but i am describing this in context of my data which may be novel. I am working with human transcript expression data and it would be interesting to create an association network using partial correlations. Partial correlation method finds the correlation between two variable while conditional all other variables. We can easily threshold this kind of network by calculating p-values as under the null, where all variables are independent, Hotelling is the null distribution. Using this we can test for significant partial correlations and filter the network. I can compare results of networks obtained from using correlation and partial correlation networks. A network based on partial correlation is expected to be more dense and may reveal interesting hidden links.
+So I will first select the transcript which are highly likely to interact using mutual information metric and filter some of the weekly interacting components. Then, on the remaining transcripts i'll use partial correlation measure to build an association network.
+
+
+
+# Solution 4
+
+
+```{r, tidy=TRUE}
+library(GENIE3)
+library(readr)
+library("doParallel", lib.loc="~/R/win-library/3.4")
+library("doRNG", lib.loc="~/R/win-library/3.4")
+library(plyr)
+library(PRROC)
+#read true labels
+trueEcoli1<-read.csv("NIHW in silico data/NIHW in silico data/Size100/DREAM3 gold standards/DREAM3GoldStandard_InSilicoSize100_Ecoli1.txt",sep = "\t",header = F)
+trueEcoli2<-read.csv("NIHW in silico data/NIHW in silico data/Size100/DREAM3 gold standards/DREAM3GoldStandard_InSilicoSize100_Ecoli2.txt",sep = "\t",header = F)
+#do for ecoli data 1
+adata<-read.csv("NIHW in silico data/NIHW in silico data/Size100/DREAM3 data/InSilicoSize100-Ecoli1-trajectories.tsv",sep = "\t")
+adata<-t(adata)
+expmat<-as.matrix(adata[2:101,1:966])
+rownames(expmat) <- paste("G", 1:100, sep="")
+colnames(expmat) <- paste("Samp", 1:966, sep="")
+
+res1<-GENIE3(expmat,nCores = 6,nTrees = 100)
+linkList <- getLinkList(res1)
+names(linkList)<-c("RG","TG","Weight")
+names(trueEcoli1)<-c("RG","TG","Label")
+
+q4thresh<-quantile(linkList$Weight,0.75)
+#q4thresh<-0.1
+linkList_q4<-linkList[linkList$Weight >= q4thresh,]
+names(linkList_q4)<-c("RG","TG","Weight")
+joined_data<-plyr::join(linkList,trueEcoli1)
+joined_data_q4<-plyr::join(linkList_q4,trueEcoli1)
+pr1 <- pr.curve(scores.class0 = joined_data$Weight, weights.class0 = joined_data$Label, curve = T)
+plot(pr1,main = "PR Curve for Ecoli dataset 1")
+pr1_1 <- pr.curve(scores.class0 = joined_data_q4$Weight, weights.class0 = joined_data_q4$Label, curve = T)
+plot(pr1_1,main = "PR Curve for Ecoli dataset 1 (only top quartile edges)")
+
+#do for ecoli data 2
+adata2<-read.csv("NIHW in silico data/NIHW in silico data/Size100/DREAM3 data/InSilicoSize100-Ecoli2-trajectories.tsv",sep = "\t")
+adata2<-t(adata2)
+expmat2<-as.matrix(adata2[2:101,1:966])
+rownames(expmat2) <- paste("G", 1:100, sep="")
+colnames(expmat2) <- paste("Samp", 1:966, sep="")
+
+res2<-GENIE3(expmat2,nCores = 6,K="all",nTrees = 100)
+linkList2 <- getLinkList(res2)
+names(linkList2)<-c("RG","TG","Weight")
+
+names(trueEcoli2)<-c("RG","TG","Label")
+q4thresh2<-quantile(linkList2$Weight,0.75)
+linkList2_q4<-linkList2[linkList2$Weight >= q4thresh2,]
+names(linkList2_q4)<-c("RG","TG","Weight")
+joined_data2<-plyr::join(linkList2,trueEcoli2)
+joined_data2_q4<-plyr::join(linkList2_q4,trueEcoli2)
+pr2 <- pr.curve(scores.class0 = joined_data2$Weight, weights.class0 = joined_data2$Label, curve = T)
+plot(pr2,main = "PR Curve for Ecoli dataset 2")
+pr2_1 <- pr.curve(scores.class0 = joined_data2_q4$Weight, weights.class0 = joined_data2_q4$Label, curve = T)
+plot(pr2_1,main = "PR Curve for Ecoli dataset 2 (only top quartile edges)")
+
+
+#save results to file
+write_tsv(linkList,"Ecoli1_results_all.tsv")
+write_tsv(linkList_q4,"Ecoli1_results_topq.tsv")
+write_tsv(linkList2,"Ecoli2_results_all.tsv")
+write_tsv(linkList2_q4,"Ecoli2_results_topq.tsv")
+
+#find best estimate intersection from linkList_q4 and linkList2_q4
+temp_linkList_q4<-linkList_q4
+names(temp_linkList_q4)<-c("RG","TG","ecoli1")
+temp_linkList2_q4<-linkList2_q4
+names(temp_linkList2_q4)<-c("RG","TG","ecoli2")
+#common edges
+common<-plyr::join(temp_linkList_q4,temp_linkList2_q4,type="inner")
+#save to file
+write_tsv(common,"Ecoli_best_estimate.tsv")
+```
+
+
+
+## a
+GENIE3 is an algorithm for inferring gene regulatory networks from expression data. GENIE3 decomposes the prediction of a regulatory network between $p$ genes into $p$ different regression problems. In each of the regression problems, the expression pattern of one of the genes (target gene) is predicted from the expression patterns of all the other genes (input genes), using tree-based ensemble methods.
+
+I ran GENEI3 with default parameters except I changed number of trees to 100 (to be faster). To threshold the network I took the top quartile values and selected the edges. 
+
+## b
+I ran GENEI3 for the two ecoli data sets on the trajectories file. Then I plotted the PR curve as shown in the attached figures. Then I filtered my networks by keeping only the edges which have weights in the top quartile. To come up with my best estimate about Ecoli network, I took the intersection of the two results i.e. if edge is present in the two networks. I saved these results to file "Ecoli_best_estimate.tsv".
+
+## c Best estimates for ecoli data sets
+
+```{r, tidy=TRUE}
+common
+```
+
+
