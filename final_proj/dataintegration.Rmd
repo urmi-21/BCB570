@@ -1,0 +1,143 @@
+---
+title: "Data integration"
+author: "Urminder Singh"
+date: "May 3, 2018"
+output: pdf_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    message = FALSE,
+    warning = FALSE
+)
+```
+
+# Data integration using PCA
+First I did PCA on my data sets. My, dataset looked separable in first two PC.
+
+
+```{r, tidy=TRUE}
+
+library(RColorBrewer)
+library(scales)
+library(readr)
+library("igraph", lib.loc="~/R/win-library/3.4")
+library("ggfortify", lib.loc="~/R/win-library/3.4")
+
+
+##do PCA and cluster
+protein_data<-read.table("Protein.txt",sep=",",header=T)
+rownames(protein_data)<-protein_data[,1]
+protein_data$Gene<-NULL
+colnames(protein_data)<-paste("prot",as.character(1:length(protein_data)),sep="")
+
+gene_data<-read.table("Urminder.txt",sep=",",header=F)
+rownames(gene_data)<-gene_data[,1]
+gene_data$V1<-NULL
+colnames(gene_data)<-paste("gene",as.character(1:dim(gene_data)[2]),sep="")
+
+modified_protein_data<-subset(protein_data,(rownames(protein_data) %in% rownames(gene_data)))
+modified_protein_data<-modified_protein_data[order(match(rownames(modified_protein_data),rownames(gene_data))),]
+
+gene_data_princomp<-prcomp(gene_data)
+gene_data_princomp$sdev
+summary(gene_data_princomp)
+plot(gene_data_princomp)
+autoplot(gene_data_princomp)
+
+protein_data_princomp<-prcomp(modified_protein_data)
+protein_data_princomp$sdev
+summary(protein_data_princomp)
+plot(protein_data_princomp)
+autoplot(protein_data_princomp)
+
+```
+
+From the summary and plots we can see the most variation can be explaind using first 3 PC in both cases. Next I tried to cluster my data in this reduced space. The PCA space projects the data into a space which maximizes variance hence it is easy to cluster or separate our data. I used k-means clustering to cluster my data. To find k I plotted the within group sum-of-squares and picked the elbow point. There are other sophisticated methods like using the gap-statistic too.
+The code is shown below.
+
+```{r, tidy=TRUE}
+##find num clusters
+wss <- (nrow(gene_data)-1)*sum(apply(gene_data,2,var))
+for (i in 2:18) wss[i] <- sum(kmeans(gene_data, centers=i)$withinss)
+plot(1:18, wss, type="b", xlab="Number of Clusters", ylab="Within groups sum of squares")
+k=6
+#take first 3 PC as most variation is captured by first 3 PC
+gcomp <- data.frame(gene_data_princomp$x[,1:3])
+plot(gcomp, pch=16, col=rgb(0,0,0,0.5))
+
+gk <- kmeans(gcomp, 6, nstart=25, iter.max=1000)
+
+palette(alpha(brewer.pal(9,'Set1'), 0.5))
+plot(gcomp, col=gk$clust, pch=16)
+
+#get the genes in cluster
+plot(sort(table(gk$clust)),xlab = "cluster")
+clust <- names(sort(table(gk$clust)))
+gc1<-row.names(gene_data[gk$clust==clust[1],])
+gc2<-row.names(gene_data[gk$clust==clust[2],])
+gc3<-row.names(gene_data[gk$clust==clust[3],])
+gc4<-row.names(gene_data[gk$clust==clust[4],])
+gc5<-row.names(gene_data[gk$clust==clust[5],])
+gc6<-row.names(gene_data[gk$clust==clust[6],])
+
+print(length(gc1))
+print(length(gc2))
+print(length(gc3))
+print(length(gc4))
+print(length(gc5))
+print(length(gc6))
+
+```
+
+After doing k-means we can see we have 6 different clusters all of which look nicely separated from each other. I would beleive that these clusters represent genes which have somewhat similar expression patterns and hence they got clusters. my cluster gc6 is the biggest with 4277 genes.
+
+I repeated the same k means clustering apprach on protein dataset.
+
+```{r, tidy=TRUE}
+#do for protein
+##find num clusters
+wss <- (nrow(modified_protein_data)-1)*sum(apply(modified_protein_data,2,var))
+for (i in 1:88) wss[i] <- sum(kmeans(modified_protein_data, centers=i)$withinss)
+plot(1:88, wss, type="b", xlab="Number of Clusters", ylab="Within groups sum of squares")
+k=6
+#take first 3 PC as most variation is captured by first 3 PC
+pcomp <- data.frame(protein_data_princomp$x[,1:3])
+plot(pcomp, pch=16, col=rgb(0,0,0,0.5))
+pk <- kmeans(pcomp, k, nstart=25, iter.max=1000)
+
+palette(alpha(brewer.pal(9,'Set1'), 0.5))
+plot(pcomp, col=pk$clust, pch=16)
+
+#get the genes in cluster
+plot(sort(table(pk$clust)),xlab = "cluster")
+pclust <- names(sort(table(pk$clust)))
+pc1<-row.names(gene_data[pk$clust==pclust[1],])
+pc2<-row.names(gene_data[pk$clust==pclust[2],])
+pc3<-row.names(gene_data[pk$clust==pclust[3],])
+pc4<-row.names(gene_data[pk$clust==pclust[4],])
+pc5<-row.names(gene_data[pk$clust==pclust[5],])
+pc6<-row.names(gene_data[pk$clust==pclust[6],])
+
+print(length(pc1))
+print(length(pc2))
+print(length(pc3))
+print(length(pc4))
+print(length(pc5))
+print(length(pc6))
+```
+
+We see that the cluster sizes are similar for both protein and gene. I further took the intersection of the largest clusters and found 4045 genes overlap. I then took only these 4045 genes to build my network.
+The reason behind this is little intuitive. I am trying to get rid of genes and proteins which vary significantly in their expression profiles. Finally, I integrate two datasets by keeping common genes/proteins in the largest cluster. It is safe to assume that this set of genes behave in a coherent way assuming that there is a relationship between gene expression and the protein expression datasets. Further network analysis on this set of genes can reveal if my hypothesis is correct or not.
+
+```{r, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+finalset<-intersect(pc6,gc6)
+
+head(finalset)
+```
+
+
+# Reference
+Some part of my code was taken from this tutorial http://www.everydayanalytics.ca/2014/06/pca-and-k-means-clustering-of-delta-aircraft.html.
