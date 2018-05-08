@@ -1,0 +1,9 @@
+"Feature","gene_network_GENIE","prot_network_GENIE"
+"#Edges",9516,25447
+"#Vertices",3749,4519
+"Density",0.00135447005007098,0.00249274593984711
+"Diameter",12,16
+"Radius",1,1
+"Clustering_coeff(global)",0.0549660927830882,0.255098704992108
+"Clustering_coeff(avg)",0.0659362583196117,0.08334629033618
+"Avg Shortest Path",5.46217119242768,4.66870977070185
